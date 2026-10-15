@@ -1,0 +1,19 @@
+{$APP_DOMAIN:http://localhost} {
+	encode zstd gzip
+	handle /api/tunnel/* {
+		reverse_proxy data-gateway:3001
+	}
+	handle /api/terminal* {
+		reverse_proxy data-gateway:3001
+	}
+	handle {
+		reverse_proxy control-plane:3000
+	}
+}
+
+# Wildcard previews need TLS termination with a wildcard certificate at the edge.
+# See SELF_HOSTING.md for a standalone HTTPS configuration with supplied certificates.
+http://*.{$PREVIEW_DOMAIN:preview.localhost} {
+	encode zstd gzip
+	reverse_proxy data-gateway:3001
+}

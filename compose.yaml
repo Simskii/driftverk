@@ -1,0 +1,151 @@
+name: driftverk-control-plane
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-driftverk}
+      POSTGRES_USER: ${POSTGRES_USER:-driftverk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+
+  control-plane:
+    build:
+      context: .
+      dockerfile: control-plane/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      INSTALLATION_MODE: ${INSTALLATION_MODE:-self-hosted}
+      OPERATOR_TERMS_URL: ${OPERATOR_TERMS_URL:-}
+      OPERATOR_TERMS_VERSION: ${OPERATOR_TERMS_VERSION:-}
+      OPERATOR_PRIVACY_URL: ${OPERATOR_PRIVACY_URL:-}
+      PORT: "3000"
+      DATABASE_URL: postgres://${POSTGRES_USER:-driftverk}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-driftverk}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+      SECRET_ENCRYPTION_KEYS: ${SECRET_ENCRYPTION_KEYS:?Set SECRET_ENCRYPTION_KEYS in .env}
+      PREVIEW_TOKEN_SECRET: ${PREVIEW_TOKEN_SECRET:?Set PREVIEW_TOKEN_SECRET in .env}
+      TERMINAL_TOKEN_SECRET: ${TERMINAL_TOKEN_SECRET:?Set TERMINAL_TOKEN_SECRET in .env}
+      SSH_TOKEN_SECRET: ${SSH_TOKEN_SECRET:?Set SSH_TOKEN_SECRET in .env}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-http://localhost:3000,http://localhost:8080}
+      AUTH_ALLOW_SIGN_UP: ${AUTH_ALLOW_SIGN_UP:-true}
+      AUTH_REQUIRE_EMAIL_VERIFICATION: ${AUTH_REQUIRE_EMAIL_VERIFICATION:-true}
+      ALLOW_UNTRUSTED_CODE: ${ALLOW_UNTRUSTED_CODE:-false}
+      EMAIL_MODE: ${EMAIL_MODE:-console}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      SIGNUP_NOTIFICATION_EMAIL: ${SIGNUP_NOTIFICATION_EMAIL:-}
+      COMPUTE_AGENT_TOKEN: ${COMPUTE_AGENT_TOKEN:?Set COMPUTE_AGENT_TOKEN in .env}
+      MANAGED_COMPUTE_NODE_ID: ${MANAGED_COMPUTE_NODE_ID:-compute-1}
+      SSH_PUBLIC_HOST: ${SSH_PUBLIC_HOST:-localhost}
+      SSH_PUBLIC_PORT: ${SSH_PUBLIC_PORT:-2222}
+      PREVIEW_DOMAIN: ${PREVIEW_DOMAIN:-preview.localhost}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      GITHUB_APP_CLIENT_ID: ${GITHUB_APP_CLIENT_ID:-}
+      GITHUB_APP_CLIENT_SECRET: ${GITHUB_APP_CLIENT_SECRET:-}
+      GITHUB_APP_SLUG: ${GITHUB_APP_SLUG:-}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+
+  data-gateway:
+    build:
+      context: .
+      dockerfile: infrastructure/data-gateway/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      control-plane:
+        condition: service_healthy
+    environment:
+      PORT: "3001"
+      CONTROL_PLANE_URL: http://control-plane:3000
+      PUBLIC_APP_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      PREVIEW_TOKEN_SECRET: ${PREVIEW_TOKEN_SECRET:?Set PREVIEW_TOKEN_SECRET in .env}
+      TERMINAL_TOKEN_SECRET: ${TERMINAL_TOKEN_SECRET:?Set TERMINAL_TOKEN_SECRET in .env}
+      PREVIEW_DOMAIN: ${PREVIEW_DOMAIN:-preview.localhost}
+      MAX_STREAMS_PER_AGENT: ${MAX_STREAMS_PER_AGENT:-512}
+      SSH_BRIDGE_PORT: "3002"
+      SSH_BRIDGE_SECRET: ${SSH_BRIDGE_SECRET:?Set SSH_BRIDGE_SECRET in .env}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    ports:
+      - "127.0.0.1:${DATA_GATEWAY_PORT:-3001}:3001"
+
+  ssh-gateway:
+    build:
+      context: .
+      dockerfile: infrastructure/ssh-gateway/Dockerfile
+    restart: unless-stopped
+    stop_grace_period: 65s
+    depends_on:
+      data-gateway:
+        condition: service_healthy
+    environment:
+      CONTROL_PLANE_URL: http://control-plane:3000
+      SSH_TOKEN_SECRET: ${SSH_TOKEN_SECRET:?Set SSH_TOKEN_SECRET in .env}
+      SSH_BRIDGE_URL: ws://data-gateway:3002/ssh
+      SSH_BRIDGE_SECRET: ${SSH_BRIDGE_SECRET:?Set SSH_BRIDGE_SECRET in .env}
+      SSH_GATEWAY_PORT: "2222"
+      SSH_HOST_KEY_PATH: /data/ssh_host_key
+      SSH_HEALTH_ADDR: "0.0.0.0:3003"
+    healthcheck:
+      test: ["CMD", "ssh-gateway", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    ports:
+      - "${SSH_PUBLIC_PORT:-2222}:2222"
+    volumes:
+      - ssh-host-keys:/data
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      control-plane:
+        condition: service_healthy
+      data-gateway:
+        condition: service_healthy
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-http://localhost}
+      PREVIEW_DOMAIN: ${PREVIEW_DOMAIN:-preview.localhost}
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+      - "${HTTPS_PORT:-8443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:
+  ssh-host-keys:

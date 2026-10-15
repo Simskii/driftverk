@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="320" viewBox="-40 -20 560 320" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Inspect a running environment</title>
+  <desc id="desc">A running environment connects to a terminal, browser preview, and live logs.</desc>
+  <g stroke="#155F46" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="28" y="92" width="132" height="96" rx="9"/>
+    <path d="M28 118h132"/>
+    <circle cx="43" cy="105" r="4" fill="#D9FF66"/>
+    <path d="M55 105h32m-22 44 28-14 28 14-28 14-28-14Zm0 12 28 14 28-14"/>
+    <path d="M160 140h140m-80 0a16 16 0 0 0 16-16V65a16 16 0 0 1 16-16h48m-80 91a16 16 0 0 1 16 16v59a16 16 0 0 0 16 16h48m-7-189 7 7-7 7m0 77 7 7-7 7m0 77 7 7-7 7"/>
+    <rect x="316" y="18" width="112" height="62" rx="7"/>
+    <path d="M316 35h112m-94 12 9 8-9 8m18 0h15"/>
+    <rect x="316" y="109" width="112" height="62" rx="7"/>
+    <path d="M316 126h112m-72 14h12m-12 10h12m-12 10h8"/>
+    <rect x="328" y="138" width="19" height="22" rx="2"/>
+    <path d="M386 140h29m-29 10h24m-24 10h18"/>
+    <rect x="316" y="200" width="112" height="62" rx="7"/>
+    <path d="M316 217h112m-88 12h31m-31 10h61m-61 10h46"/>
+    <path d="M329 229h1m-1 10h1m-1 10h1" stroke-width="3"/>
+    <circle cx="448" cy="49" r="6" fill="#D9FF66"/>
+    <circle cx="448" cy="140" r="6" fill="#D9FF66"/>
+    <circle cx="448" cy="231" r="6" fill="#D9FF66"/>
+  </g>
+</svg>

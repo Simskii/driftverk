@@ -1,0 +1,17 @@
+.git
+**/node_modules
+**/dist
+.env
+.env.*
+!.env.example
+**/*.pem
+**/*.key
+infrastructure/cyrus-*
+audit
+design-qa*
+qa-*.png
+
+# Local self-hosting edge configuration
+Caddyfile.self-hosted
+compose.self-hosted.yaml
+preview-tls/

@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+INSTALL_DIR="${DRIFTVERK_INSTALL_DIR:-/opt/driftverk}"
+ENV_FILE="${INSTALL_DIR}/.env.compute"
+COMPOSE_FILE="${INSTALL_DIR}/compose.compute.yaml"
+AGENT_SERVICES=(compute-agent preview-gateway web-terminal)
+
+fail() { printf 'Error: %s\n' "$1" >&2; exit 1; }
+require_root() { [ "$(id -u)" -eq 0 ] || fail "Run this command with sudo."; }
+require_installation() { [ -f "$ENV_FILE" ] && [ -f "$COMPOSE_FILE" ] || fail "No Driftverk Compute agent installation found in ${INSTALL_DIR}."; }
+compose() { docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"; }
+config_value() { sed -n "s/^${1}=//p" "$ENV_FILE" | head -n 1; }
+
+case "${1:-help}" in
+  status)
+    require_installation
+    compose ps
+    ;;
+  logs)
+    require_installation
+    compose logs --tail="${DRIFTVERK_LOG_LINES:-200}" -f compute-agent
+    ;;
+  restart)
+    require_root
+    require_installation
+    compose up -d --no-deps --force-recreate "${AGENT_SERVICES[@]}"
+    compose ps "${AGENT_SERVICES[@]}"
+    ;;
+  update)
+    require_root
+    require_installation
+    control_plane_url="$(config_value CONTROL_PLANE_URL)"
+    [ -n "$control_plane_url" ] || fail "CONTROL_PLANE_URL is missing from ${ENV_FILE}."
+    installer="$(mktemp)"
+    trap 'rm -f "$installer"' EXIT
+    curl -fsS "${control_plane_url%/}/install/agent" -o "$installer" || fail "Could not download the Compute agent installer."
+    bash -n "$installer" || fail "The downloaded installer is not valid shell."
+    DRIFTVERK_CONTROL_PLANE_URL="$control_plane_url" DRIFTVERK_INSTALL_DIR="$INSTALL_DIR" bash "$installer"
+    ;;
+  doctor)
+    require_installation
+    failed=0
+    check() {
+      if "$@" >/dev/null 2>&1; then printf '  %-30s OK\n' "$1"; else printf '  %-30s FAILED\n' "$1"; failed=1; fi
+    }
+    printf 'Driftverk Compute agent diagnostics\n\n'
+    check docker info
+    check docker compose version
+    if docker info --format '{{json .Runtimes}}' 2>/dev/null | grep -q 'sysbox-runc'; then printf '  %-30s OK\n' "sysbox-runc"; else printf '  %-30s FAILED\n' "sysbox-runc"; failed=1; fi
+    if [ "$(config_value DOCKER_RUNTIME)" = sysbox-runc ]; then
+      for service in sysbox-fs sysbox-mgr; do
+        if systemctl is-active --quiet "$service"; then printf '  %-30s OK\n' "$service"; else printf '  %-30s FAILED\n' "$service"; failed=1; fi
+      done
+    fi
+    if systemctl is-active --quiet driftverk-watchdog.timer; then printf '  %-30s OK\n' 'host watchdog'; else printf '  %-30s FAILED\n' 'host watchdog'; failed=1; fi
+    if jq -e --argjson now "$(date +%s)" '.checked_at > (($now - 90) * 1000) and (.checks | length > 0) and all(.checks[]; .status == "healthy")' /var/lib/driftverk/health/status.json >/dev/null 2>&1; then
+      printf '  %-30s OK\n' 'host service health'
+    else
+      printf '  %-30s FAILED\n' 'host service health'
+      failed=1
+      jq -r '.checks[] | select(.status != "healthy") | "    \(.service): \(.message)"' /var/lib/driftverk/health/status.json 2>/dev/null || true
+    fi
+    if compose config --quiet >/dev/null 2>&1; then printf '  %-30s OK\n' "compose configuration"; else printf '  %-30s FAILED\n' "compose configuration"; failed=1; fi
+    control_plane_url="$(config_value CONTROL_PLANE_URL)"
+    if [ -n "$control_plane_url" ] && curl -fsS "${control_plane_url%/}/health" >/dev/null 2>&1; then printf '  %-30s OK\n' "control plane"; else printf '  %-30s FAILED\n' "control plane"; failed=1; fi
+    data_gateway_url="$(config_value DATA_GATEWAY_URL)"
+    if [ -n "$data_gateway_url" ]; then printf '  %-30s OK\n' "data gateway configured"; else printf '  %-30s FAILED\n' "data gateway configured"; failed=1; fi
+    if compose ps --status running --services | grep -qx 'compute-agent'; then printf '  %-30s OK\n' "compute-agent service"; else printf '  %-30s FAILED\n' "compute-agent service"; failed=1; fi
+    exit "$failed"
+    ;;
+  help|--help|-h)
+    printf '%s\n' \
+      'Usage: driftverk-agent <command>' \
+      '' \
+      'Commands:' \
+      '  status    Show Compute agent services' \
+      '  update    Download and apply the current Compute agent version' \
+      '  logs      Follow Compute agent logs' \
+      '  restart   Recreate only Compute agent services' \
+      '  doctor    Check Docker, Sysbox, configuration and connectivity'
+    ;;
+  *) fail "Unknown command: $1" ;;
+esac

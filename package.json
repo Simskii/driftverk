@@ -1,0 +1,22 @@
+{
+  "name": "driftverk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm --prefix control-plane run dev",
+    "check": "npm run cli:test && npm run installer:check && npm run control:check && npm run gateway:test && npm run compute:test && npm run sdk:test && npm run sdk:check",
+    "installer:check": "bash -n control-plane/installer/agent.sh && node --test control-plane/installer/*.test.mjs",
+    "compute:test": "node --test infrastructure/compute-agent/*.test.mjs",
+    "gateway:test": "npm run ssh:test && npm --prefix infrastructure/data-gateway test",
+    "ssh:test": "cd infrastructure/ssh-gateway && go test -race ./... && go vet ./...",
+    "control:check": "npm --prefix control-plane run check",
+    "control:build": "npm --prefix control-plane run build",
+    "control:test": "npm --prefix control-plane run test",
+    "sdk:test": "npm --prefix sdk test",
+    "sdk:check": "cd control-plane && ./node_modules/.bin/tsc --ignoreConfig --noEmit --strict --module NodeNext --target ES2023 --skipLibCheck --typeRoots ./node_modules/@types ../sdk/types.test.mts",
+    "cli:test": "cd cli && go test -race ./... && go vet ./...",
+    "cli:build": "sh cli/build.sh"
+  },
+  "license": "MIT"
+}

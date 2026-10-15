@@ -1,0 +1,44 @@
+.example-guide {
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.example-guide-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.example-guide-heading .eyebrow { margin-bottom: 4px; }
+.example-guide-heading h2 { margin: 0; font-size: 18px; }
+.example-guide-heading > a { display: inline-flex; align-items: center; gap: 6px; color: var(--green-700); font-size: 12px; font-weight: 700; text-decoration: none; }
+.example-guide-heading > a:hover { text-decoration: underline; }
+.example-guide-heading > a svg { width: 15px; height: 15px; }
+.example-guide > p { margin: -4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+.example-edit-guide { border: 1px solid var(--border); background: var(--canvas); }
+.example-edit-guide > summary { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 14px; cursor: pointer; list-style: none; }
+.example-edit-guide > summary::-webkit-details-marker { display: none; }
+.example-edit-guide > summary:focus-visible { outline: 3px solid rgba(20, 104, 70, .26); outline-offset: 2px; }
+.example-edit-guide > summary span { display: grid; gap: 2px; }
+.example-edit-guide > summary strong { font-size: 13px; }
+.example-edit-guide > summary small { color: var(--muted); font-size: 11px; }
+.example-edit-guide > summary > svg { width: 17px; height: 17px; color: var(--muted); transition: transform .16s var(--motion-ease); }
+.example-edit-guide[open] > summary > svg { transform: rotate(180deg); }
+.example-edit-body { display: grid; gap: 12px; padding: 0 14px 14px; border-top: 1px solid var(--border); }
+.example-edit-body pre { max-height: 116px; margin: 14px 0 0; padding: 11px 12px; overflow: auto; background: var(--surface); border-radius: 4px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 1.5; }
+.example-edit-body .button { min-height: 36px; padding: 7px 11px; font-size: 12px; }
+.example-edit-body .button svg { width: 16px; height: 16px; }
+
+@media (max-width: 620px) {
+  .example-guide-heading { align-items: flex-start; }
+  .example-guide-heading > a { max-width: 120px; justify-content: flex-end; text-align: right; }
+  .example-edit-body .development-actions { display: grid; grid-template-columns: 1fr; }
+  .example-edit-body .button { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .example-edit-guide > summary > svg { transition: none; }
+}

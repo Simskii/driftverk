@@ -1,0 +1,138 @@
+name: driftverk-compute
+
+services:
+  compute-agent:
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(Date.now()-Number(require('fs').readFileSync('/tmp/driftverk-agent-alive','utf8'))<30000?0:1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    build:
+      context: ./infrastructure/compute-agent
+    restart: unless-stopped
+    environment:
+      CONTROL_PLANE_URL: ${CONTROL_PLANE_URL:?Set CONTROL_PLANE_URL in .env.compute}
+      COMPUTE_AGENT_TOKEN: ${COMPUTE_AGENT_TOKEN:?Set COMPUTE_AGENT_TOKEN in .env.compute}
+      COMPUTE_NODE_ID: ${COMPUTE_NODE_ID:-compute-1}
+      COMPUTE_AGENT_VERSION: ${COMPUTE_AGENT_VERSION:-0.2.5}
+      DATA_GATEWAY_URL: ${DATA_GATEWAY_URL:-}
+      DOCKER_RUNTIME: ${DOCKER_RUNTIME:-sysbox-runc}
+      HOST_HEALTH_FILE: ${HOST_HEALTH_FILE:-}
+      SANDBOX_NETWORK: ${SANDBOX_NETWORK:-bridge}
+      POLL_INTERVAL_MS: ${POLL_INTERVAL_MS:-2000}
+      TELEMETRY_INTERVAL_MS: ${TELEMETRY_INTERVAL_MS:-15000}
+      IMAGE_CLEANUP_INTERVAL_MS: ${IMAGE_CLEANUP_INTERVAL_MS:-900000}
+      IMAGE_CLEANUP_MIN_AGE_HOURS: ${IMAGE_CLEANUP_MIN_AGE_HOURS:-168}
+      SNAPSHOT_TEMP_RETENTION_HOURS: ${SNAPSHOT_TEMP_RETENTION_HOURS:-1}
+      IMAGE_CLEANUP_MAX_IMAGES: ${IMAGE_CLEANUP_MAX_IMAGES:-50}
+      SNAPSHOT_STORAGE_DRIVER: ${SNAPSHOT_STORAGE_DRIVER:-local}
+      SNAPSHOT_S3_BUCKET: ${SNAPSHOT_S3_BUCKET:-}
+      SNAPSHOT_S3_REGION: ${SNAPSHOT_S3_REGION:-eu-north-1}
+      SNAPSHOT_S3_PREFIX: ${SNAPSHOT_S3_PREFIX:-driftverk/snapshots}
+      SNAPSHOT_S3_ENDPOINT: ${SNAPSHOT_S3_ENDPOINT:-}
+      SNAPSHOT_S3_FORCE_PATH_STYLE: ${SNAPSHOT_S3_FORCE_PATH_STYLE:-false}
+      SNAPSHOT_TEMP_DIR: /snapshot-tmp
+      VOLUME_STORAGE_DRIVER: ${VOLUME_STORAGE_DRIVER:-${SNAPSHOT_STORAGE_DRIVER:-local}}
+      VOLUME_S3_BUCKET: ${VOLUME_S3_BUCKET:-${SNAPSHOT_S3_BUCKET:-}}
+      VOLUME_S3_REGION: ${VOLUME_S3_REGION:-${SNAPSHOT_S3_REGION:-eu-north-1}}
+      VOLUME_S3_PREFIX: ${VOLUME_S3_PREFIX:-driftverk/volumes}
+      VOLUME_S3_ENDPOINT: ${VOLUME_S3_ENDPOINT:-${SNAPSHOT_S3_ENDPOINT:-}}
+      VOLUME_S3_FORCE_PATH_STYLE: ${VOLUME_S3_FORCE_PATH_STYLE:-${SNAPSHOT_S3_FORCE_PATH_STYLE:-false}}
+      VOLUME_MOUNT_ROOT: /var/lib/driftverk/volumes
+      VOLUME_CACHE_ROOT: /var/lib/driftverk/volume-cache
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    volumes:
+      - /var/lib/driftverk/health:/host-health:ro
+      - /run/sysbox:/run/sysbox:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${SNAPSHOT_TEMP_DIR_HOST:-/var/lib/driftverk/snapshot-tmp}:/snapshot-tmp
+      - type: bind
+        source: ${VOLUME_MOUNT_ROOT_HOST:-/var/lib/driftverk/volumes}
+        target: /var/lib/driftverk/volumes
+        bind:
+          propagation: rshared
+      - ${VOLUME_CACHE_ROOT_HOST:-/var/lib/driftverk/volume-cache}:/var/lib/driftverk/volume-cache
+    devices:
+      - /dev/fuse:/dev/fuse
+    pid: host
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    networks:
+      - default
+      - sandbox-network
+
+  preview-gateway:
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8081/health',{signal:AbortSignal.timeout(3000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    build:
+      context: ./infrastructure/compute-agent
+    command: ["node", "preview-gateway.mjs"]
+    restart: unless-stopped
+    environment:
+      CONTROL_PLANE_URL: ${CONTROL_PLANE_URL:?Set CONTROL_PLANE_URL in .env.compute}
+      COMPUTE_AGENT_TOKEN: ${COMPUTE_AGENT_TOKEN:?Set COMPUTE_AGENT_TOKEN in .env.compute}
+      COMPUTE_NODE_ID: ${COMPUTE_NODE_ID:-compute-1}
+      SANDBOX_NETWORK: ${SANDBOX_NETWORK:-bridge}
+      PREVIEW_GATEWAY_PORT: ${PREVIEW_GATEWAY_PORT:-8081}
+      PREVIEW_DOMAIN: ${PREVIEW_DOMAIN:-preview.app.driftverk.com}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - default
+      - sandbox-network
+      - edge-network
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${DRIFTVERK_EDGE_NETWORK:-driftverk-edge}
+      traefik.http.routers.driftverk-preview.entrypoints: websecure
+      traefik.http.routers.driftverk-preview.rule: HostRegexp(`[0-9]+-[a-z0-9-]+[.]preview[.]app[.]driftverk[.]com`)
+      traefik.http.routers.driftverk-preview.priority: "100"
+      traefik.http.routers.driftverk-preview.tls: "true"
+      traefik.http.services.driftverk-preview.loadbalancer.server.port: "8081"
+
+  web-terminal:
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:2223/health',{signal:AbortSignal.timeout(3000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    build:
+      context: ./infrastructure/compute-agent
+    command: ["node", "web-terminal.mjs"]
+    restart: unless-stopped
+    environment:
+      CONTROL_PLANE_URL: ${CONTROL_PLANE_URL:?Set CONTROL_PLANE_URL in .env.compute}
+      COMPUTE_AGENT_TOKEN: ${COMPUTE_AGENT_TOKEN:?Set COMPUTE_AGENT_TOKEN in .env.compute}
+      COMPUTE_NODE_ID: ${COMPUTE_NODE_ID:-compute-1}
+      WEB_TERMINAL_PORT: ${WEB_TERMINAL_PORT:-2223}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - default
+      - edge-network
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${DRIFTVERK_EDGE_NETWORK:-driftverk-edge}
+      traefik.http.routers.driftverk-web-terminal.entrypoints: websecure
+      traefik.http.routers.driftverk-web-terminal.rule: Host(`${PANEL_HOSTNAME:-app.driftverk.com}`) && PathPrefix(`/api/terminal`)
+      traefik.http.routers.driftverk-web-terminal.priority: "100"
+      traefik.http.routers.driftverk-web-terminal.tls.certresolver: letsencrypt
+      traefik.http.services.driftverk-web-terminal.loadbalancer.server.port: "2223"
+
+networks:
+  edge-network:
+    external: true
+    name: ${DRIFTVERK_EDGE_NETWORK:-driftverk-edge}
+  sandbox-network:
+    external: true
+    name: ${SANDBOX_NETWORK:-driftverk-sandboxes}

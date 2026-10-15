@@ -1,0 +1,15 @@
+{
+  "name": "@driftverk/data-gateway",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test *.test.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "ssh2": "^1.17.0"
+  },
+  "license": "MIT"
+}

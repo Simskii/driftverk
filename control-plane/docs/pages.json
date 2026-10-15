@@ -1,0 +1,17 @@
+[
+  {"slug":"getting-started","title":"Quickstart","description":"Create an environment, run your app, open a preview and stop compute.","group":"Start","source":"guides/getting-started.md"},
+  {"slug":"cli-skill","title":"AI skill","description":"Teach your AI agent to use the Driftverk CLI.","group":"Start","source":"guides/cli-skill.md"},
+  {"slug":"mcp","title":"MCP","description":"Connect an AI client and run a complete environment workflow.","group":"Start","source":"guides/mcp.md"},
+  {"slug":"project-setup","title":"Project setup","description":"Repositories, Compose, commands and reusable prebuilds.","group":"Use Driftverk","source":"guides/project-setup.md"},
+  {"slug":"agents","title":"Agents","description":"Connect Codex or Claude Code and open it in your environment.","group":"Use Driftverk","source":"guides/agents.md"},
+  {"slug":"desktop","title":"Browser and desktop","description":"Share a browser with your agent and record tasks for review.","group":"Use Driftverk","source":"guides/desktop.md"},
+  {"slug":"codex-and-t3-code","title":"Codex and T3 Code","description":"Connect your desktop app over SSH and run agent work inside an environment.","group":"Use Driftverk","source":"guides/codex-and-t3-code.md"},
+  {"slug":"environments","title":"Lifecycle and storage","description":"Understand what survives stopping, restarting and deleting.","group":"Use Driftverk","source":"guides/environments.md"},
+  {"slug":"environment-variables","title":"Environment variables","description":"Configure trusted environments and rotate secrets.","group":"Use Driftverk","source":"guides/environment-variables.md"},
+  {"slug":"hybrid-installation","title":"Hybrid installation","description":"Install, verify and maintain your own compute host.","group":"Use Driftverk","source":"guides/hybrid-installation.md"},
+  {"slug":"troubleshooting","title":"Troubleshooting","description":"Diagnose queued environments, failed setup and connection problems.","group":"Use Driftverk","source":"guides/troubleshooting.md"},
+  {"slug":"api","title":"API reference","description":"Authentication, requests, operations and resource limits.","group":"Reference","source":"api.md"},
+  {"slug":"sdk","title":"Node.js SDK","description":"Install the local SDK and execute commands from code.","group":"Reference","source":"guides/sdk.md"},
+  {"slug":"preview-environments","title":"Pull request environments","description":"Build a GitHub Actions integration with scoped credentials.","group":"Reference","source":"github-actions.md"},
+  {"slug":"webhooks","title":"Webhooks","description":"Receive signed lifecycle events and handle retries.","group":"Reference","source":"webhooks.md"}
+]

@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            control-plane/package-lock.json
+            infrastructure/compute-agent/package-lock.json
+            infrastructure/data-gateway/package-lock.json
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version-file: infrastructure/ssh-gateway/go.mod
+          cache-dependency-path: infrastructure/ssh-gateway/go.sum
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix control-plane ci
+          npm --prefix infrastructure/compute-agent ci
+          npm --prefix infrastructure/data-gateway ci
+
+      - name: Check and test control plane
+        env:
+          CONTROL_PLANE_TEST_DATABASE_URL: postgres://postgres@127.0.0.1:5432/postgres
+        run: |
+          npm --prefix control-plane run check
+          npm --prefix control-plane test
+
+      - name: Audit npm dependencies
+        run: |
+          npm --prefix control-plane audit --audit-level=moderate
+          npm --prefix infrastructure/compute-agent audit --audit-level=moderate
+          npm --prefix infrastructure/data-gateway audit --audit-level=moderate
+
+      - name: Test compute agent
+        run: |
+          npm run installer:check
+          npm run gateway:test
+          npm run compute:test
+
+      - name: Build production image
+        run: |
+          docker build -t driftverk-control-plane:test -f control-plane/Dockerfile .
+          docker build -t driftverk-data-gateway:test -f infrastructure/data-gateway/Dockerfile .
+          docker build -t driftverk-ssh-gateway:test -f infrastructure/ssh-gateway/Dockerfile .
+          docker build -t driftverk-compute-agent:test -f infrastructure/compute-agent/Dockerfile infrastructure/compute-agent
+
+      - uses: anchore/sbom-action@43a17d6e7add2b5535efe4dcae9952337c479a93
+        with:
+          image: driftverk-control-plane:test
+          format: spdx-json
+          syft-version: v1.54.1
+          artifact-name: control-plane.spdx.json
+      - uses: anchore/sbom-action@43a17d6e7add2b5535efe4dcae9952337c479a93
+        with:
+          image: driftverk-data-gateway:test
+          format: spdx-json
+          syft-version: v1.54.1
+          artifact-name: data-gateway.spdx.json
+      - uses: anchore/sbom-action@43a17d6e7add2b5535efe4dcae9952337c479a93
+        with:
+          image: driftverk-ssh-gateway:test
+          format: spdx-json
+          syft-version: v1.54.1
+          artifact-name: ssh-gateway.spdx.json
+      - uses: anchore/sbom-action@43a17d6e7add2b5535efe4dcae9952337c479a93
+        with:
+          image: driftverk-compute-agent:test
+          format: spdx-json
+          syft-version: v1.54.1
+          artifact-name: compute-agent.spdx.json
+      - name: Export installed third-party legal files
+        run: |
+          mkdir -p image-notices
+          for component in control-plane data-gateway ssh-gateway compute-agent; do
+            sh scripts/third-party-image.sh "driftverk-$component:test" "image-notices/$component.tar"
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: image-third-party-notices
+          path: image-notices/
+          if-no-files-found: error

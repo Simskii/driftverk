@@ -1,0 +1,49 @@
+services:
+  control-plane:
+    environment:
+      INSTALLATION_MODE: ${INSTALLATION_MODE:-hosted}
+      EMAIL_FROM: ${EMAIL_FROM:-Driftverk <hello@driftverk.com>}
+      SSH_PUBLIC_HOST: ${SSH_PUBLIC_HOST:-ssh.app.driftverk.com}
+      PREVIEW_DOMAIN: ${PREVIEW_DOMAIN:-preview.app.driftverk.com}
+    networks:
+      - default
+      - dokploy-network
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: dokploy-network
+      traefik.http.routers.driftverk-control-plane-web.entrypoints: web
+      traefik.http.routers.driftverk-control-plane-web.middlewares: redirect-to-https@file
+      traefik.http.routers.driftverk-control-plane-web.rule: Host(`${PUBLIC_HOSTNAME:?Set PUBLIC_HOSTNAME in .env}`)
+      traefik.http.routers.driftverk-control-plane-web.service: driftverk-control-plane-web
+      traefik.http.routers.driftverk-control-plane-websecure.entrypoints: websecure
+      traefik.http.routers.driftverk-control-plane-websecure.rule: Host(`${PUBLIC_HOSTNAME:?Set PUBLIC_HOSTNAME in .env}`)
+      traefik.http.routers.driftverk-control-plane-websecure.service: driftverk-control-plane-websecure
+      traefik.http.routers.driftverk-control-plane-websecure.tls.certresolver: letsencrypt
+      traefik.http.services.driftverk-control-plane-web.loadbalancer.server.port: "3000"
+      traefik.http.services.driftverk-control-plane-websecure.loadbalancer.server.port: "3000"
+
+  data-gateway:
+    environment:
+      PREVIEW_DOMAIN: ${PREVIEW_DOMAIN:-preview.app.driftverk.com}
+    networks:
+      - default
+      - dokploy-network
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: dokploy-network
+      traefik.http.routers.driftverk-data-gateway-preview.entrypoints: websecure
+      traefik.http.routers.driftverk-data-gateway-preview.rule: HostRegexp(`${PREVIEW_HOST_REGEXP:-^[0-9]+-[a-z0-9-]+[.]preview[.]app[.]driftverk[.]com$$}`)
+      traefik.http.routers.driftverk-data-gateway-preview.priority: "200"
+      traefik.http.routers.driftverk-data-gateway-preview.service: driftverk-data-gateway-preview
+      traefik.http.routers.driftverk-data-gateway-preview.tls: "true"
+      traefik.http.routers.driftverk-data-gateway-app.entrypoints: websecure
+      traefik.http.routers.driftverk-data-gateway-app.rule: Host(`${PUBLIC_HOSTNAME:?Set PUBLIC_HOSTNAME in .env}`) && (PathPrefix(`/api/tunnel`) || PathPrefix(`/api/terminal`))
+      traefik.http.routers.driftverk-data-gateway-app.priority: "200"
+      traefik.http.routers.driftverk-data-gateway-app.service: driftverk-data-gateway-app
+      traefik.http.routers.driftverk-data-gateway-app.tls.certresolver: letsencrypt
+      traefik.http.services.driftverk-data-gateway-preview.loadbalancer.server.port: "3001"
+      traefik.http.services.driftverk-data-gateway-app.loadbalancer.server.port: "3001"
+
+networks:
+  dokploy-network:
+    external: true

@@ -1,0 +1,51 @@
+{
+  "name": "@driftverk/control-plane",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --config vite.config.ts",
+    "dev:server": "tsx watch src/server.ts",
+    "build": "vite build --config vite.config.ts && tsc -p tsconfig.json && node ../scripts/third-party-npm.mjs . dist/public/third-party-notices.txt",
+    "start": "node dist/server.js",
+    "check": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",
+    "test": "node --import tsx --test src/**/*.test.ts",
+    "test:web": "node --import tsx --test web/tests/*.test.ts",
+    "secrets:rotate": "node dist/rotate-secrets-cli.js",
+    "auth:generate": "auth generate --config src/auth.ts --output migrations/0001_better_auth.sql --yes",
+    "admin:grant": "node dist/admin-bootstrap-cli.js"
+  },
+  "dependencies": {
+    "@better-auth/cimd": "^1.7.2",
+    "@better-auth/mcp": "^1.7.2",
+    "@hono/node-server": "2.1.1",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "better-auth": "1.7.2",
+    "hono": "4.13.7",
+    "jose": "^6.2.11",
+    "pg": "8.23.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.18.3",
+    "remark-gfm": "^4.0.1",
+    "resend": "6.26.0",
+    "stripe": "^22.6.1",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "@types/pg": "8.18.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^5.2.0",
+    "auth": "1.7.2",
+    "tsx": "4.23.13",
+    "typescript": "7.0.2",
+    "vite": "^7.3.6"
+  },
+  "license": "MIT"
+}

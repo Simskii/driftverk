@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your shared browser</title>
+<style>
+body { margin: 0; background: #f3f5ef; color: #183424; font: 18px/1.6 system-ui, sans-serif; }
+main { max-width: 700px; margin: 12vh auto; padding: 32px; }
+small { letter-spacing: .12em; font-size: 12px; } h1 { font-size: 46px; line-height: 1.15; letter-spacing: -2px; }
+p { color: #526255; } button, input { font: inherit; border-radius: 8px; padding: 12px 18px; }
+button { background: #244d34; color: white; border: 0; cursor: pointer; } input { border: 1px solid #b8c4b8; width: 100%; margin: 8px 0 20px; box-sizing: border-box; }
+</style>
+<main>
+  <small>DRIFTVERK / BROWSER PROTOTYPE</small>
+  <h1>You and your agent.<br>The same browser.</h1>
+  <p>This Chromium runs inside your environment. Open your app with its local address, such as <code>http://localhost:3000</code>.</p>
+  <label for="note">Try typing in the shared browser</label>
+  <input id="note" placeholder="Take control in the toolbar first">
+  <button id="counter">Clicked 0 times</button>
+  <p>Agents can attach to this session through CDP on <code>127.0.0.1:9222</code> inside the environment.</p>
+</main>
+<script>let count = 0; document.querySelector('#counter').onclick = event => { event.target.textContent = `Clicked ${++count} times`; };</script>
+</html>

@@ -1,0 +1,1102 @@
+openapi: 3.1.0
+info:
+  title: Driftverk API
+  version: 1.0.0
+  description: Create and manage isolated development environments.
+servers:
+  - url: https://app.driftverk.com/v1
+security:
+  - bearerAuth: []
+paths:
+  /me:
+    get:
+      summary: Get API identity
+      operationId: getIdentity
+      responses:
+        "200":
+          description: Authenticated organization and API key
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IdentityResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /environments:
+    get:
+      summary: List environments
+      operationId: listEnvironments
+      responses:
+        "200":
+          description: Active environments in the organization
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Environment" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      summary: Create an environment
+      operationId: createEnvironment
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateEnvironment" }
+      responses:
+        "202": { $ref: "#/components/responses/OperationAccepted" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /environments/{environment_id}:
+    parameters: [{ $ref: "#/components/parameters/EnvironmentId" }]
+    get:
+      summary: Get an environment
+      operationId: getEnvironment
+      responses:
+        "200":
+          description: Environment
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: "#/components/schemas/Environment" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      summary: Delete an environment
+      operationId: deleteEnvironment
+      description: "Requires delete scope. May delete an environment with an active execution: requests cancellation and queues container removal. Wait for the operation to succeed."
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      responses:
+        "202": { $ref: "#/components/responses/OperationAccepted" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /environments/{environment_id}/start:
+    parameters:
+      - { $ref: "#/components/parameters/EnvironmentId" }
+      - { $ref: "#/components/parameters/IdempotencyKey" }
+    post:
+      summary: Start an environment
+      operationId: startEnvironment
+      responses:
+        "202": { $ref: "#/components/responses/OperationAccepted" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /environments/{environment_id}/stop:
+    parameters:
+      - { $ref: "#/components/parameters/EnvironmentId" }
+      - { $ref: "#/components/parameters/IdempotencyKey" }
+    post:
+      summary: Stop an environment
+      operationId: stopEnvironment
+      responses:
+        "202": { $ref: "#/components/responses/OperationAccepted" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /environments/{environment_id}/ports/{port}/preview:
+    parameters:
+      - { $ref: "#/components/parameters/EnvironmentId" }
+      - name: port
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1, maximum: 65535 }
+    post:
+      summary: Create a private one-hour preview grant for a known HTTP port
+      operationId: createPreview
+      responses:
+        "200":
+          description: Private preview grant
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [url, expires_at]
+                    properties:
+                      url: { type: string, format: uri, writeOnly: true }
+                      expires_at: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /snapshots:
+    get:
+      summary: List ready and in-progress snapshots
+      operationId: listSnapshots
+      responses:
+        "200":
+          description: Organization snapshots
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Snapshot" } }
+  /operations/{operation_id}:
+    get:
+      summary: Get an asynchronous operation
+      operationId: getOperation
+      parameters:
+        - name: operation_id
+          in: path
+          required: true
+          schema: { type: string, pattern: "^job_" }
+      responses:
+        "200":
+          description: Operation state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: "#/components/schemas/Operation" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /project-setups/{template_id}/prepared-preview:
+    parameters:
+      - name: template_id
+        in: path
+        required: true
+        schema: {type: string}
+    get:
+      summary: Get prepared preview status
+      operationId: getPreparedPreview
+      description: Requires an unrestricted organization key. Claims renew a 24-hour lifetime; missing spares fall back to preparation.
+      responses:
+        '200':
+          description: Prepared preview status or claim result in the data envelope
+  /project-setups/{template_id}/prepared-preview/configure:
+    parameters:
+      - name: template_id
+        in: path
+        required: true
+        schema: {type: string}
+    post:
+      summary: Keep one preview ready for a snapshot blueprint
+      operationId: configurePreparedPreview
+      description: Requires an unrestricted organization key. Claims renew a 24-hour lifetime; missing spares fall back to preparation.
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: {type: string, minLength: 8}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: {type: boolean}
+      responses:
+        '200':
+          description: Prepared preview status or claim result in the data envelope
+  /project-setups/{template_id}/prepared-preview/claim:
+    parameters:
+      - name: template_id
+        in: path
+        required: true
+        schema: {type: string}
+    post:
+      summary: Atomically claim or reuse a trusted PR preview
+      operationId: claimPreparedPreview
+      description: Requires an unrestricted organization key. Claims renew a 24-hour lifetime; missing spares fall back to preparation.
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: {type: string, minLength: 8}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string}
+      responses:
+        '200':
+          description: Prepared preview status or claim result in the data envelope
+  /project-setups:
+    get:
+      summary: List reusable project setups
+      operationId: listProjectSetups
+      description: Requires read scope. Repository-scoped keys cannot access project setups.
+      responses:
+        '200':
+          description: Project setups in the organization
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProjectSetup'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      summary: Save a reusable project setup
+      operationId: createProjectSetup
+      description: Requires write scope and an Idempotency-Key. Saves configuration without starting compute. Repository-scoped keys are denied. Credentials and runtime variables are not stored.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        $ref: '#/components/requestBodies/ProjectSetup'
+      responses:
+        '201': { $ref: '#/components/responses/ProjectSetup' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /project-setups/{template_id}:
+    parameters:
+      - name: template_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      summary: Get a project setup
+      operationId: getProjectSetup
+      description: Requires read scope. Repository-scoped keys are denied.
+      responses:
+        '200': { $ref: '#/components/responses/ProjectSetup' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      summary: Replace a project setup
+      operationId: updateProjectSetup
+      description: Requires write scope. Replaces the full name and configuration; omitted settings receive defaults. Existing prebuilds and environments are unchanged. Repository-scoped keys are denied.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        $ref: '#/components/requestBodies/ProjectSetup'
+      responses:
+        '200': { $ref: '#/components/responses/ProjectSetup' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      summary: Delete a project setup
+      operationId: deleteProjectSetup
+      description: Requires delete scope. Removes only the saved configuration; prebuilds and environments are retained. Repository-scoped keys are denied.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Setup removed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [deleted]
+                    properties: { deleted: { const: true } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /prebuilds/{prebuild_id}:
+    get:
+      summary: Get a prebuild
+      operationId: getPrebuild
+      description: Requires read scope. Lookup by ID is not limited to the latest 100 builds. Repository-scoped keys are denied.
+      parameters:
+        - name: prebuild_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Prebuild status and configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/Prebuild' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /prebuilds:
+    get:
+      summary: List clean prebuilds
+      operationId: listPrebuilds
+      description: Requires read scope. Returns the latest 100, newest first. Repository-scoped keys cannot access
+        prebuilds. Poll GET /prebuilds/{prebuild_id} for building, ready or failed status.
+      responses:
+        '200':
+          description: Prebuilds
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    maxItems: 100
+                    items:
+                      $ref: '#/components/schemas/Prebuild'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      summary: Build a clean project setup
+      operationId: buildPrebuild
+      description: Requires write scope and an Idempotency-Key. Starts from the setup image, pins a repository commit
+        when present, and runs setup without runtime variables, volume mounts, initialization or startup commands.
+        An existing building prebuild for the setup is returned. Repository-scoped keys are denied.
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - template_id
+              properties:
+                template_id:
+                  type: string
+                compute_node_id:
+                  type: string
+                  description: Optional Hybrid host ID.
+      responses:
+        '202':
+          description: Build accepted; poll GET /prebuilds/{prebuild_id}
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PrebuildAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /environments/{environment_id}/executions:
+    parameters:
+    - $ref: '#/components/parameters/EnvironmentId'
+    post:
+      summary: Execute a shell command
+      operationId: executeCommand
+      description: Requires write scope and an Idempotency-Key. Environment must be running, with no active lifecycle
+        operation or execution. Requires an updated compute agent and Python 3 inside the image. Timeout starts when
+        the command starts, not while queued.
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateExecution'
+      responses:
+        '202':
+          description: Execution queued
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ExecutionAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /executions/{execution_id}:
+    parameters:
+    - &id001
+      $ref: '#/components/parameters/ExecutionId'
+    get:
+      summary: Get command status and artifact metadata
+      operationId: getExecution
+      description: Requires read scope. Organization and repository-key scope apply.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Execution'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Delete completed execution output and artifacts
+      operationId: deleteExecution
+      description: Requires delete scope. Cancel and wait for terminal status first. No Idempotency-Key is required.
+        Deletes control-plane records; files in the environment remain until environment cleanup.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Deleted'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /executions/{execution_id}/output:
+    parameters:
+    - *id001
+    get:
+      summary: Read replayable stdout and stderr
+      operationId: readExecutionOutput
+      description: Requires read scope. Returns up to 100 chunks ordered by sequence. Pass the last sequence as after
+        to fetch the next page. Base64 encodes raw bytes; sequence is a decimal string, not a byte offset.
+      parameters:
+      - $ref: '#/components/parameters/OutputCursor'
+      responses:
+        '200':
+          description: Output chunks
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: array
+                    maxItems: 100
+                    items:
+                      $ref: '#/components/schemas/ExecutionOutput'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /executions/{execution_id}/events:
+    parameters:
+    - *id001
+    get:
+      summary: Stream replayable execution output
+      operationId: streamExecutionOutput
+      description: Requires read scope. SSE output events contain ExecutionOutput JSON and use sequence as the event
+        ID. A done event contains Execution JSON. Connections end after approximately 30 seconds; reconnect with Last-Event-ID
+        or after until done. Last-Event-ID takes precedence. Disconnecting does not cancel execution.
+      parameters:
+      - $ref: '#/components/parameters/OutputCursor'
+      - name: Last-Event-ID
+        in: header
+        schema:
+          type: string
+          pattern: ^[0-9]{1,18}$
+      responses:
+        '200':
+          description: SSE output and done events
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: 'id: 12
+
+                event: output
+
+                data: {"sequence":"12","stream":"stdout","byte_offset":0,"data":"aGVsbG8K"}
+
+
+                '
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /executions/{execution_id}/cancel:
+    parameters:
+    - *id001
+    post:
+      summary: Request command cancellation
+      operationId: cancelExecution
+      description: Requires write scope. Queued commands become cancelled immediately. Running commands retain running
+        status until the agent reports completion; poll GET execution. Cancels the command process group. No Idempotency-Key
+        is required; repeating a request is safe.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Execution'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /executions/{execution_id}/artifact:
+    parameters:
+    - *id001
+    get:
+      summary: Download a declared command artifact
+      operationId: getExecutionArtifact
+      description: Requires read scope. Artifacts are collected when execution ends, at most four regular files of
+        128 KiB each. Symlinks and special files are rejected.
+      parameters:
+      - name: path
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 300
+        description: Exact relative artifact path declared at command creation.
+      responses:
+        '200':
+          description: Raw artifact bytes, with attachment disposition
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '409':
+          description: Artifact could not be captured; inspect execution artifact metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  requestBodies:
+    ProjectSetup:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name, configuration]
+            properties:
+              name: { type: string, minLength: 1, maxLength: 80 }
+              configuration: { $ref: '#/components/schemas/ProjectConfiguration' }
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Driftverk API key
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 200, pattern: "^[A-Za-z0-9._:-]+$" }
+    EnvironmentId:
+      name: environment_id
+      in: path
+      required: true
+      schema: { type: string, pattern: "^dev_" }
+    ExecutionId:
+      name: execution_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^exec_
+    OutputCursor:
+      name: after
+      in: query
+      schema:
+        type: string
+        pattern: ^[0-9]{1,18}$
+        default: '0'
+  schemas:
+    ProjectConfiguration:
+      type: object
+      description: Reusable configuration. Image sources require image; snapshot sources require a ready organization snapshot_id. Only these fields are saved; workspace_path is derived. Commands and images must not contain embedded credentials.
+      properties:
+        source_type:
+          type: string
+          enum:
+          - image
+          - snapshot
+        image: { type: [string, "null"] }
+        snapshot_id: { type: [string, "null"] }
+        registry_id: { type: [string, "null"] }
+        repository: { type: [string, "null"] }
+        repository_branch: { type: [string, "null"] }
+        workspace_path: { type: [string, "null"] }
+        setup_command: { type: [string, "null"], maxLength: 8000 }
+        initialization_command: { type: [string, "null"], maxLength: 8000 }
+        startup_command: { type: [string, "null"], maxLength: 8000 }
+        readiness_command: { type: [string, "null"], maxLength: 8000 }
+        cpu:
+          type: integer
+          enum: [1, 2, 4, 8]
+          default: 1
+        memory_mb:
+          type: integer
+          enum: [1024, 2048, 4096, 8192, 16384]
+          default: 2048
+        auto_stop_minutes:
+          minimum: 1
+          maximum: 525600
+          default: 15
+          type:
+          - integer
+          - 'null'
+    ProjectSetup:
+      type: object
+      required:
+      - id
+      - name
+      - configuration
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        configuration:
+          $ref: '#/components/schemas/ProjectConfiguration'
+        created_at: { type: string, format: date-time }
+    PrebuildAccepted:
+      type: object
+      required:
+      - id
+      - status
+      properties:
+        id:
+          type: string
+        status:
+          const: building
+    Prebuild:
+      type: object
+      required:
+      - id
+      - name
+      - status
+      - configuration
+      - created_at
+      properties:
+        id:
+          type: string
+        template_id: { type: [string, "null"] }
+        snapshot_id: { type: [string, "null"] }
+        configuration:
+          $ref: '#/components/schemas/ProjectConfiguration'
+        name:
+          type: string
+        status:
+          enum:
+          - building
+          - ready
+          - failed
+        repository_revision:
+          type:
+          - string
+          - 'null'
+          description: Pinned 40-character Git commit, when a repository is configured.
+        error_message: { type: [string, "null"] }
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+    CreateExecution:
+      type: object
+      required:
+      - command
+      properties:
+        command:
+          type: string
+          minLength: 1
+          maxLength: 8000
+          description: Executed with /bin/sh -c inside the environment.
+        cwd:
+          type: string
+          maxLength: 1000
+          pattern: ^/
+          description: Absolute directory; defaults to the project workspace, or /.
+        environment_variables:
+          type: array
+          maxItems: 25
+          description: Per-execution secrets for trusted environments and unrestricted keys. Encrypted until completion; overrides inherited values for this command only.
+          items:
+            type: object
+            required: [name, value]
+            properties:
+              name: {type: string, pattern: '^[A-Za-z_][A-Za-z0-9_]*$'}
+              value: {type: string, maxLength: 32768}
+        timeout_seconds:
+          type: integer
+          minimum: 1
+          maximum: 3600
+          default: 900
+        artifacts:
+          type: array
+          maxItems: 4
+          uniqueItems: true
+          default: []
+          items:
+            type: string
+            minLength: 1
+            maxLength: 300
+          description: Paths relative to cwd. No absolute paths, empty segments, dot segments or NULs.
+    ExecutionAccepted:
+      type: object
+      required:
+      - id
+      - environment_id
+      - status
+      properties:
+        id:
+          type: string
+        environment_id:
+          type: string
+        status:
+          const: queued
+    Execution:
+      type: object
+      required:
+      - id
+      - environment_id
+      - status
+      - exit_code
+      - cancel_requested
+      - stdout_bytes
+      - stderr_bytes
+      - artifacts
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: string
+        environment_id:
+          type: string
+        status:
+          enum:
+          - queued
+          - running
+          - succeeded
+          - failed
+          - cancelled
+          - timed_out
+          - output_limit
+          - lost
+        exit_code:
+          type:
+          - integer
+          - 'null'
+          minimum: -255
+          maximum: 255
+          description: Null until known; negative values can indicate a terminating signal.
+        cancel_requested:
+          type: boolean
+        stdout_bytes:
+          type: integer
+          minimum: 0
+          maximum: 1048576
+        stderr_bytes:
+          type: integer
+          minimum: 0
+          maximum: 1048576
+        artifacts:
+          type: array
+          maxItems: 4
+          items:
+            type: object
+            required:
+            - path
+            - size
+            - error
+            properties:
+              path:
+                type: string
+              size:
+                type:
+                - integer
+                - 'null'
+                maximum: 131072
+              error: { type: [string, "null"] }
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ExecutionOutput:
+      type: object
+      required:
+      - sequence
+      - stream
+      - byte_offset
+      - data
+      properties:
+        sequence:
+          type: string
+          pattern: ^[0-9]+$
+        stream:
+          enum:
+          - stdout
+          - stderr
+        byte_offset:
+          type: integer
+          minimum: 0
+        data:
+          type: string
+          contentEncoding: base64
+          description: Up to 32768 raw bytes per chunk. Each stream is capped at 1 MiB; exceeding a cap terminates execution
+            with output_limit.
+    Deleted:
+      type: object
+      required:
+      - deleted
+      properties:
+        deleted:
+          const: true
+    IdentityResponse:
+      type: object
+      required: [organization, api_key]
+      properties:
+        organization:
+          type: object
+          required: [id, name]
+          properties: { id: { type: string }, name: { type: string } }
+        api_key:
+          type: object
+          required: [id, name, scopes]
+          properties:
+            id: { type: string }
+            name: { type: string }
+            scopes: { type: array, items: { type: string, enum: [read, write, delete] } }
+            automation_id_prefix: { type: [string, "null"], pattern: "^github:[0-9]+:pr:$" }
+    Environment:
+      type: object
+      required: [id, name, state, desired_state, source_type, cpu_count, memory_mb, disk_gb, created_at, updated_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        state: { type: string, enum: [provisioning, running, stopped, degraded] }
+        desired_state: { type: string, enum: [running, stopped, deleted] }
+        source_type: { type: string, enum: [image, snapshot] }
+        source_image: { type: [string, "null"] }
+        code_trust: { type: string, enum: [trusted, untrusted] }
+        automation_id: { type: [string, "null"] }
+        source_revision: { type: [string, "null"] }
+        snapshot_id: { type: [string, "null"] }
+        prebuild_id: { type: [string, "null"] }
+        repository: { type: [string, "null"] }
+        repository_branch: { type: [string, "null"] }
+        workspace_path: { type: [string, "null"] }
+        initialization_command: { type: [string, "null"] }
+        startup_command: { type: [string, "null"] }
+        readiness_command: { type: [string, "null"] }
+        preview_enabled: { type: boolean }
+        cpu_count: { type: integer }
+        memory_mb: { type: integer }
+        disk_gb: { type: integer, description: "Legacy metadata; does not reserve or limit disk space." }
+        provisioning_step: { type: string }
+        error_message: { type: [string, "null"] }
+        active_operation: { type: [string, "null"] }
+        environment_variable_names: { type: array, items: { type: string } }
+        organization_secret_names: { type: array, items: { type: string } }
+        application_status_at: { type: [string, "null"], format: date-time }
+        application_status:
+          type: [object, "null"]
+          properties:
+            status: { type: string, enum: [starting, ready, failed] }
+            message: { type: string }
+            services:
+              type: array
+              items:
+                type: object
+                properties:
+                  name: { type: string }
+                  state: { type: string }
+                  health: { type: string }
+                  exit_code: { type: integer }
+        ssh_username: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CreateEnvironment:
+      description: "Image environments require a digest. A ready prebuild supplies the snapshot and pinned repository and requires code_trust trusted. Repository-scoped keys cannot use prebuilds. Runtime commands also require trusted code."
+      type: object
+      properties:
+        name: { type: string, pattern: "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$" }
+        source_type: { type: string, enum: [image, snapshot], default: image }
+        image: { type: string, maxLength: 240, pattern: "@sha256:[a-f0-9]{64}$" }
+        prebuild_id: { type: string, description: "Ready clean prebuild ID; supplies source and setup defaults. Does not rerun setup." }
+        setup_command: { type: [string, "null"], maxLength: 8000, description: "Initial setup for trusted image environments; ignored when using a prebuild." }
+        initialization_command: { type: [string, "null"], maxLength: 8000, description: "Runs once per new environment after runtime variables are available and before startup. This does not isolate a shared external database." }
+        startup_command: { type: [string, "null"], maxLength: 8000, description: "App command run on create and resume." }
+        readiness_command: { type: [string, "null"], maxLength: 8000, description: "Command whose success marks the app ready." }
+        preview_enabled: { type: boolean, default: true, description: "Allow signed, time-limited HTTP preview links for this environment." }
+        snapshot_id: { type: string }
+        registry_id: { type: string }
+        compute_node_id: { type: string, description: "Optional Hybrid host ID from Compute hosts. Omit for automatic placement. Existing environments stay on their assigned host." }
+        cpu: { type: integer, enum: [1, 2, 4, 8], default: 1 }
+        memory_mb: { type: integer, enum: [1024, 2048, 4096, 8192, 16384], default: 2048 }
+        disk_gb: { type: integer, enum: [20, 40, 50, 80, 100], default: 40, description: "Legacy metadata; does not reserve or limit disk space." }
+        code_trust: { type: string, enum: [untrusted, trusted], default: untrusted }
+        automation_id: { type: string, pattern: "^github:[0-9]+:pr:[1-9][0-9]*$" }
+        source_revision: { type: string, pattern: "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" }
+        auto_delete_minutes: { type: [integer, "null"], minimum: 1, maximum: 525600, default: 360, description: "Total lifetime since creation, even while active. Null disables automatic deletion for trusted environments." }
+        organization_secret_names:
+          type: array
+          maxItems: 25
+          uniqueItems: true
+          items:
+            type: string
+            pattern: '^[A-Za-z_][A-Za-z0-9_]{0,127}$'
+          description: Required organization secrets copied at creation for trusted environments. Missing names and collisions with direct variables are rejected. Rotations affect future environments only.
+        environment_variables:
+          type: array
+          maxItems: 25
+          items:
+            type: object
+            required: [name, value]
+            properties:
+              name: { type: string, pattern: "^[A-Za-z_][A-Za-z0-9_]*$" }
+              value: { type: string, maxLength: 32768, writeOnly: true }
+      anyOf:
+        - required: [prebuild_id]
+        - required: [image]
+          properties: { source_type: { const: image } }
+        - required: [snapshot_id]
+          properties: { source_type: { const: snapshot } }
+    OperationAccepted:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [environment_id, operation_id, status]
+          properties:
+            environment_id: { type: string }
+            operation_id: { type: string }
+            status: { type: string }
+    Operation:
+      type: object
+      required: [id, environment_id, operation, status, created_at, updated_at]
+      properties:
+        id: { type: string }
+        environment_id: { type: string }
+        operation: { type: string, enum: [create, start, stop, delete, snapshot] }
+        status: { type: string, enum: [queued, leased, succeeded, failed] }
+        provisioning_step: { type: string }
+        attempts: { type: integer }
+        error_message: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    Snapshot:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        version: { type: string }
+        status: { type: string, enum: [building, ready, failed] }
+        kind: { type: string, enum: [base, filesystem] }
+        base_image: { type: string }
+        snapshot_size_gb: { type: number }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties: { code: { type: string }, message: { type: string } }
+  responses:
+    ProjectSetup:
+      description: Saved project setup
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties: { data: { $ref: '#/components/schemas/ProjectSetup' } }
+    TooManyRequests:
+      description: "Organization limit reached: 100 active or 1000 retained executions. Completed executions older than seven days are pruned on new admission."
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    OperationAccepted:
+      description: Operation queued
+      content: { application/json: { schema: { $ref: "#/components/schemas/OperationAccepted" } } }
+    BadRequest:
+      description: Invalid request
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Unauthorized:
+      description: Invalid or missing API key
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Forbidden:
+      description: API key lacks the required scope
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: Resource not found in this organization
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Conflict:
+      description: Conflicting operation or idempotency key
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }

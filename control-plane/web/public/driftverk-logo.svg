@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 292 64" role="img" aria-labelledby="title desc">
+  <title id="title">Driftverk</title>
+  <desc id="desc">Driftverk wordmark with a three-layer infrastructure symbol</desc>
+  <g fill="none" fill-rule="evenodd">
+    <path fill="#10231E" d="M4 8h42l10 8-10 8H4V8Zm0 20h42l10 8-10 8H4V28Zm0 20h42l10 8-10 8H4V48Z"/>
+    <path fill="#155F46" d="M4 28h42l10 8-10 8H4V28Z"/>
+    <circle cx="44" cy="16" r="3" fill="#D9FF66"/>
+    <circle cx="44" cy="36" r="3" fill="#D9FF66"/>
+    <circle cx="44" cy="56" r="3" fill="#D9FF66"/>
+    <text x="76" y="44" fill="#10231E" font-family="Arial, sans-serif" font-size="36" font-weight="700">Driftverk</text>
+  </g>
+</svg>

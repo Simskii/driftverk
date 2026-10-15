@@ -1,0 +1,12 @@
+services:
+  # The local Mac PostgreSQL instance replaces this service. The old named
+  # volume is intentionally left untouched so the previous test database can
+  # be recovered if needed.
+  postgres:
+    profiles:
+      - bundled-postgres
+
+  control-plane:
+    depends_on: !reset []
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-driftverk}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@host.docker.internal:5432/${POSTGRES_DB:-driftverk}

@@ -1,0 +1,15 @@
+.desktop-panel { padding: 20px; min-width: 0; }
+.desktop-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.desktop-actions strong { font-size: 15px; }
+.desktop-actions p, .desktop-notice, .desktop-empty p { font-size: 13px; color: var(--text-muted, #69746d); line-height: 1.5; }
+.desktop-actions p { margin: 5px 0 0; }
+.desktop-buttons { display: flex; flex-shrink: 0; flex-wrap: wrap; gap: 8px; }
+.desktop-frame { display: block; width: 100%; height: min(72vh, 900px); min-height: 380px; border: 1px solid var(--border, #dce3dd); border-radius: 10px; background: #111a16; }
+.desktop-empty { min-height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; }
+.desktop-empty p { margin: 12px 0 0; }
+@media (max-width: 700px) {
+  .desktop-panel { padding: 12px; }
+  .desktop-actions { align-items: flex-start; flex-direction: column; }
+  .desktop-buttons { width: 100%; }
+  .desktop-frame { min-height: 340px; height: 65vh; }
+}

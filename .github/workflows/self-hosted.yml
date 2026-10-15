@@ -1,0 +1,45 @@
+name: Self-hosted Sysbox
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: self-hosted-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  end-to-end:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+      - name: Bootstrap Sysbox on the empty runner
+        run: |
+          # Exercise the installer's real bootstrap functions before starting Docker workloads.
+          sed '/^printf.*Driftverk Compute agent setup/,$d' control-plane/installer/agent.sh > /tmp/driftverk-bootstrap.sh
+          printf '\nensure_host_tools\nensure_docker\nensure_sysbox\n' >> /tmp/driftverk-bootstrap.sh
+          sudo bash /tmp/driftverk-bootstrap.sh
+          sudo systemctl is-active sysbox-mgr sysbox-fs
+      - run: npm --prefix infrastructure/data-gateway ci
+      - name: Build the environment image
+        run: docker build --label driftverk.dev-image-version=3 -t driftverk-dev:1 images/dev
+      - name: Configure isolated self-hosted stack
+        run: node control-plane/scripts/smoke-self-hosted.mjs prepare
+      - name: Build and start the control plane and gateways
+        run: docker compose --env-file /tmp/driftverk-oss-qa/env -f compose.yaml -f /tmp/driftverk-oss-qa/compose.yaml up -d --build --wait --wait-timeout 180
+      - name: Verify enrollment and real environment operations
+        run: node control-plane/scripts/smoke-self-hosted.mjs
+      - name: Publish sanitized verification summary
+        if: always()
+        run: |
+          if [ -f /tmp/driftverk-oss-qa/results.txt ]; then
+            cat /tmp/driftverk-oss-qa/results.txt >> "$GITHUB_STEP_SUMMARY"
+          fi
+          docker ps --format 'table {{.Names}}\t{{.Status}}'
+      # The GitHub VM is discarded after the job. Do not upload secrets, auth logs or database volumes.

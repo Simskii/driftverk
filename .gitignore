@@ -1,0 +1,27 @@
+node_modules/
+.wrangler/
+.dev.vars
+.env
+.env.compute
+worker-configuration.d.ts
+dist/
+__pycache__/
+*.pyc
+
+# Native CLI release artifacts
+control-plane/installer/bin/
+cli/driftverk
+cli/driftverk.exe
+
+# Operator configuration and private integrations
+.env.*
+!.env.example
+!.env.compute.example
+*.pem
+*.key
+infrastructure/cyrus-*/
+
+# Local self-hosting edge configuration
+Caddyfile.self-hosted
+compose.self-hosted.yaml
+preview-tls/
